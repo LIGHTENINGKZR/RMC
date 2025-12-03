@@ -116,6 +116,7 @@ def read_tables_from_txt(file_path):
     tables["C2"] = sorted(tables.get("C2", []), key=lambda x: x[0])
     return tables
 
+
 def collect_numbers_from_input(table_name):
     """
     整体更新：仍只收车号（不输入姓名）。
@@ -141,31 +142,38 @@ def collect_numbers_from_input(table_name):
                 print(f"  ⚠️ 跳过非数字项：{tok}")
     return nums
 
-def update_table_rows(rows, new_numbers, max_unused=3):
+def update_table_rows(rows, new_numbers, max_unused=3, increment_absent=True):
     """
     rows: [(number, unused, name), ...]
     new_numbers: [n1, n2, ...]
-    规则：
+    规则（通用）：
       - 若 number 在本次输入中出现 -> unused = 0（存在则清零；不存在则新增为0, name=""）
-      - 若 number 未在本次输入中出现 -> unused += 1；若 unused 达到 max_unused，则删除该条
+      - 若 number 未在本次输入中出现:
+          * increment_absent=True  -> unused += 1；若 unused >= max_unused，则删除该条
+          * increment_absent=False -> unused 保持不变（不删除）
       - 最后按 number 升序排序
     """
     # 构造 num -> (unused, name)
     d = {num: (unused, name) for (num, unused, name) in rows}
     new_set = set(new_numbers)
 
-    # 未出现的旧号码：unused+1，达到阈值删除
-    to_delete = []
-    for num in list(d.keys()):
-        if num not in new_set:
-            old_unused, old_name = d[num]
-            new_unused = old_unused + 1
-            if new_unused >= max_unused:
-                to_delete.append(num)
-            else:
-                d[num] = (new_unused, old_name)
-    for num in to_delete:
-        del d[num]
+    if increment_absent:
+        # 未出现的旧号码：unused+1，达到阈值删除
+        to_delete = []
+        for num in list(d.keys()):
+            if num not in new_set:
+                old_unused, old_name = d[num]
+                new_unused = old_unused + 1
+                if new_unused >= max_unused:
+                    to_delete.append(num)
+                else:
+                    d[num] = (new_unused, old_name)
+        for num in to_delete:
+            del d[num]
+    else:
+        # 不递增未出现者：完全保持旧 unused 与存在性
+        # （什么都不做）
+        pass
 
     # 本次出现的号码：置 unused=0；新号则 name=""
     for n in new_set:
@@ -179,6 +187,7 @@ def update_table_rows(rows, new_numbers, max_unused=3):
     # 还原为列表并排序
     out = [(num, unused, name) for num, (unused, name) in d.items()]
     return sorted(out, key=lambda x: x[0])
+
 
 def write_tables_to_txt(output_path, tables):
     """
@@ -218,7 +227,7 @@ def write_tables_to_txt(output_path, tables):
             numbers_str = ",".join(str(num) for num, _, _ in rows)
             f.write(f"{key} 已使用车号: {numbers_str}\n")
         
-        f.write("\n车号具体使用人见《 车号统计》\n")
+        f.write("车号具体使用人见《 车号统计》\n")
 
     return output_path
 
@@ -297,13 +306,14 @@ def ask_single_edit():
 #==================== 删除号码 ====================#
 def choose_mode():
     print("请选择操作模式：")
-    print("1. 整体更新（输入本赛季已使用车号）")
-    print("2. 单个车号信息 增加/修改（支持姓名）")
-    print("3. 删除号码")
-    print("4. 只运行写出并退出")
+    print("1. 新赛季车号统计更新")
+    print("2. 季中转会车号统计更新") 
+    print("3. 单个车号信息 增加/修改（支持姓名）")
+    print("4. 车号删除")
+    print("5. 只运行写出并退出")
     while True:
-        choice = input("请输入 1 / 2 / 3 / 4：").strip()
-        if choice in ("1", "2", "3", "4"):
+        choice = input("请输入 1 / 2 / 3 / 4 / 5：").strip()
+        if choice in ("1", "2", "3", "4", "5"):
             return choice
         print("无效输入，请重新输入。")
 
@@ -340,7 +350,7 @@ def delete_entry(tables):
 
 #==================== 主程序 ====================#
 if __name__ == "__main__":
-    file_path = "输入当前存放目录/车号记录.txt"   # ！！！！！！！！！！！在这里需要修改！！！！！！！！！！！！
+    file_path = "C:/Users/kangzhuorui/Desktop/RMC/车号统计/车号记录.txt"   # 原始数据文件
     tables = read_tables_from_txt(file_path)
     tables.setdefault("C1", [])
     tables.setdefault("C2", [])
@@ -354,17 +364,28 @@ if __name__ == "__main__":
         input_c2 = collect_numbers_from_input("C2")
         tables["C1"] = update_table_rows(tables["C1"], input_c1, max_unused=MAX_UNUSED)
         tables["C2"] = update_table_rows(tables["C2"], input_c2, max_unused=MAX_UNUSED)
-
+    
     elif mode == "2":
+        # 整体更新，但不递增未出现号码的闲置数
+        input_c1 = collect_numbers_from_input("C1")
+        input_c2 = collect_numbers_from_input("C2")
+        tables["C1"] = update_table_rows(
+            tables["C1"], input_c1, max_unused=MAX_UNUSED, increment_absent=False
+        )
+        tables["C2"] = update_table_rows(
+            tables["C2"], input_c2, max_unused=MAX_UNUSED, increment_absent=False
+        )
+
+    elif mode == "3":
         # 单个增改（可带姓名）
         key, car_no, new_unused, name = ask_single_edit()
         set_single_entry(tables, key, car_no, new_unused, name=name, max_unused=MAX_UNUSED)
 
-    elif mode == "3":
+    elif mode == "4":
         # 删除号码
         delete_entry(tables)
 
-    elif mode == "4":
+    elif mode == "5":
         # 只写出并退出
         base, ext = os.path.splitext(file_path)
         backup_path = base + "_backup" + ext
@@ -372,6 +393,7 @@ if __name__ == "__main__":
         write_tables_to_txt(file_path, tables)
         print(f"✅ 已写入：{file_path}\n📂 备份文件：{backup_path}")
         raise SystemExit(0)
+
 
     # === 写回原文件（覆盖写入前先备份） ===
     base, ext = os.path.splitext(file_path)
