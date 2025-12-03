@@ -350,7 +350,7 @@ def delete_entry(tables):
 
 #==================== 主程序 ====================#
 if __name__ == "__main__":
-    file_path = "C:/Users/kangzhuorui/Desktop/RMC/车号统计/车号记录.txt"   # 原始数据文件
+    file_path = "C:/Users/用户名/Desktop/RMC/车号统计/车号记录.txt"   # 原始数据文件
     tables = read_tables_from_txt(file_path)
     tables.setdefault("C1", [])
     tables.setdefault("C2", [])
